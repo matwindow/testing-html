@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CSS Circular Flash & White Charge Grid</title>
+  <title>Pixelated Circular Gradient Grid</title>
   <style>
     * {
       margin: 0;
@@ -17,60 +17,40 @@
     }
 
     #grid {
-      --x: -500px;
-      --y: -500px;
-      position: relative;
       display: grid;
       grid-template-columns: repeat(32, 1fr);
       grid-template-rows: repeat(16, 1fr);
       gap: 2px;
       width: 100vw;
       height: 100vh;
-      /* Pure CSS circular spotlight behind the grid gaps */
-      background: radial-gradient(
-        circle 220px at var(--x) var(--y),
-        #0f0 0%,
-        rgba(0, 255, 0, 0.25) 45%,
-        #000 100%
-      );
-    }
-
-    /* Semi-transparent circular glow overlay on top of the boxes */
-    #grid::after {
-      content: "";
-      position: absolute;
-      inset: 0;
-      pointer-events: none;
-      background: radial-gradient(
-        circle 200px at var(--x) var(--y),
-        rgba(0, 255, 0, 0.45) 0%,
-        rgba(0, 255, 0, 0.12) 50%,
-        transparent 100%
-      );
     }
 
     effect-box {
+      --d: 999; /* Distance from mouse in box units */
       display: block;
       width: 100%;
       height: 100%;
-      background: #181818;
+
+      /* 1. White core in the center (distance 0 to 1.8 boxes), fading to green */
+      --core: color-mix(
+        in srgb,
+        #fff calc(clamp(0, 1 - var(--d) / 1.8, 1) * 100%),
+        #0f0
+      );
+
+      /* 2. Outer green circle (distance 0 to 5 boxes), fading to normal #181818 */
+      background: color-mix(
+        in srgb,
+        var(--core) calc(clamp(0, 1 - var(--d) / 5, 1) * 100%),
+        #181818
+      );
+
       transition: background 1.2s ease-out;
     }
 
-    /* Pure CSS hover trail + automatic white charge when staying on a box */
-    effect-box:hover {
-      background: #0f0;
+    /* Instant snap-on when active, slow CSS fade-out when mouse moves away */
+    effect-box.lit {
       transition: background 0s;
-      animation: chargeToWhite 0.7s forwards;
-    }
-
-    @keyframes chargeToWhite {
-      0% {
-        background: #0f0;
-      }
-      100% {
-        background: #fff;
-      }
     }
   </style>
 </head>
@@ -79,14 +59,37 @@
 
   <script>
     const grid = document.getElementById("grid");
+    const cols = 32;
+    const rows = 16;
+    const boxes = [];
 
-    for (let i = 0; i < 32 * 16; i++) {
-      grid.appendChild(document.createElement("effect-box"));
+    for (let y = 0; y < rows; y++) {
+      for (let x = 0; x < cols; x++) {
+        const el = document.createElement("effect-box");
+        grid.appendChild(el);
+        boxes.push({ el, x, y, timer: null });
+      }
     }
 
     grid.addEventListener("mousemove", (e) => {
-      grid.style.setProperty("--x", `${e.clientX}px`);
-      grid.style.setProperty("--y", `${e.clientY}px`);
+      const rect = grid.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * cols;
+      const my = ((e.clientY - rect.top) / rect.height) * rows;
+
+      for (const box of boxes) {
+        const dist = Math.hypot(box.x + 0.5 - mx, box.y + 0.5 - my);
+
+        if (dist < 5) {
+          box.el.style.setProperty("--d", dist.toFixed(2));
+          box.el.classList.add("lit");
+
+          clearTimeout(box.timer);
+          box.timer = setTimeout(() => {
+            box.el.classList.remove("lit");
+            box.el.style.setProperty("--d", 999);
+          }, 60);
+        }
+      }
     });
   </script>
 </body>
