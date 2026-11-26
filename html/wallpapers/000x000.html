@@ -26,19 +26,17 @@
     }
 
     effect-box {
-      --d: 999; /* Distance from mouse in box units */
+      --d: 999;
       display: block;
       width: 100%;
       height: 100%;
 
-      /* 1. White core in the center (distance 0 to 1.8 boxes), fading to green */
       --core: color-mix(
         in srgb,
         #fff calc(clamp(0, 1 - var(--d) / 1.8, 1) * 100%),
         #0f0
       );
 
-      /* 2. Outer green circle (distance 0 to 5 boxes), fading to normal #181818 */
       background: color-mix(
         in srgb,
         var(--core) calc(clamp(0, 1 - var(--d) / 5, 1) * 100%),
@@ -48,7 +46,6 @@
       transition: background 1.2s ease-out;
     }
 
-    /* Instant snap-on when active, slow CSS fade-out when mouse moves away */
     effect-box.lit {
       transition: background 0s;
     }
@@ -63,34 +60,71 @@
     const rows = 16;
     const boxes = [];
 
+    let mx = null;
+    let my = null;
+    let lastX = null;
+    let lastY = null;
+
     for (let y = 0; y < rows; y++) {
       for (let x = 0; x < cols; x++) {
         const el = document.createElement("effect-box");
         grid.appendChild(el);
-        boxes.push({ el, x, y, timer: null });
+        boxes.push({ el, x, y });
       }
+    }
+
+    function distToSegment(px, py, x1, y1, x2, y2) {
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      const lenSq = dx * dx + dy * dy;
+      let t = lenSq === 0 ? 0 : ((px - x1) * dx + (py - y1) * dy) / lenSq;
+      t = Math.max(0, Math.min(1, t));
+      return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
     }
 
     grid.addEventListener("mousemove", (e) => {
       const rect = grid.getBoundingClientRect();
-      const mx = ((e.clientX - rect.left) / rect.width) * cols;
-      const my = ((e.clientY - rect.top) / rect.height) * rows;
+      mx = ((e.clientX - rect.left) / rect.width) * cols;
+      my = ((e.clientY - rect.top) / rect.height) * rows;
 
+      if (lastX === null) {
+        lastX = mx;
+        lastY = my;
+      }
+    });
+
+    grid.addEventListener("mouseleave", () => {
+      mx = null;
+      my = null;
+      lastX = null;
+      lastY = null;
+    });
+
+    // Runs every frame (60+ FPS) whether the mouse is moving or sitting still
+    function update() {
       for (const box of boxes) {
-        const dist = Math.hypot(box.x + 0.5 - mx, box.y + 0.5 - my);
+        const dist =
+          mx === null
+            ? 999
+            : distToSegment(box.x + 0.5, box.y + 0.5, lastX, lastY, mx, my);
 
         if (dist < 5) {
           box.el.style.setProperty("--d", dist.toFixed(2));
           box.el.classList.add("lit");
-
-          clearTimeout(box.timer);
-          box.timer = setTimeout(() => {
-            box.el.classList.remove("lit");
-            box.el.style.setProperty("--d", 999);
-          }, 60);
+        } else if (box.el.classList.contains("lit")) {
+          box.el.classList.remove("lit");
+          box.el.style.setProperty("--d", 999);
         }
       }
-    });
+
+      // Snap lastX/lastY to current mouse so it stays a clean circle when stopped
+      lastX = mx;
+      lastY = my;
+
+      requestAnimationFrame(update);
+    }
+
+    update();
   </script>
 </body>
 </html>
